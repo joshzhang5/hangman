@@ -39,9 +39,9 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((sys.argv[1], int(sys.argv[2])))
 s.setblocking(0)
 if multiplayer:
-    s.send(bytes([1,2]))
+    s.send(bytes([2]))
 else:
-    s.send(bytes([1,0]))
+    s.send(bytes([0]))
 
 bytesToRead = 0
 num_incorrect = 0
@@ -57,7 +57,7 @@ while True:
                   [],
                   [],
                   0.1)
-    for sock in ready_to_read:  
+    for sock in ready_to_read:
         data = sock.recv(1024)
         if not data:
             # we have disconnected

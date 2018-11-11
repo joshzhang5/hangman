@@ -85,9 +85,11 @@ class GameInstance():
             self.player1.send(player1Msg)
         else:
             activePlayerMessage = ["Your turn!\n"]
-            waitingPlayerMessage = ["Waiting on Player " + (1 if self.state == STATE_TURN_1 else 2) + "...\n"]
-            player1Msgs, player2Msgs = activePlayerMessage, waitingPlayerMessage if self.state == STATE_TURN_1 else waitingPlayerMessage, activePlayerMessage
-            
+            waitingPlayerMessage = ["Waiting on Player " + (str(1) if self.state == STATE_TURN_1 else str(2)) + "...\n"]
+            player1Msgs, player2Msgs = activePlayerMessage, waitingPlayerMessage 
+            if self.state == STATE_TURN_2:
+                player1Msgs, player2Msgs = player2Msgs, player1Msgs
+
             for msg in player1Msgs:
                 self.player1.send(GameServer.constructMsg(msg))
             for msg in player2Msgs:
@@ -180,12 +182,13 @@ class GameInstance():
     
     # Ends the game
     def endGame(self, outcomeMsg):
-        print("Client ended with outcome " + outcomeMsg)
+        print("Game ended with outcome " + outcomeMsg)
         self.state = STATE_END
         for player in self.getPlayers():
             player.send(self.createGameMsg())
             player.send(GameServer.constructMsg(outcomeMsg))
             player.send(GameServer.constructMsg("Game Over!"))
+
 
 class GameServer():
     def __init__(self, port):
@@ -253,7 +256,14 @@ class GameServer():
             if s not in self.outputs:
                 self.outputs.append(s)
 
-            # parse any buffered data
+            # We have to handle parsing the multiplayer messages seperately because
+            # Those messages violate the protocal
+            if self.gamesMap[s].getState() == STATE_INITIALIZING:
+                if len(self.clientBuffers[s]) >= 1:
+                    byte_1 = self.clientBuffers[s].popleft()
+                    self.gamesMap[s].readClientMsg(s, byte_1)
+
+            # Parse the rest of the buffered data normally
             while len(self.clientBuffers[s]) >= 2:
                 byte_1 = self.clientBuffers[s].popleft()
                 byte_2 = self.clientBuffers[s].popleft()
@@ -267,7 +277,7 @@ class GameServer():
         elif not data:
             # Client has disconnected
             print("Client has disconnected!")
-            self.endGame(self.gamesMap[s])
+            self.terminateGame(self.gamesMap[s])
 
     # Returns binary string representing the message passed
     # Byte 0: length of message
@@ -287,6 +297,25 @@ class GameServer():
         data = msg[1]
         return data
 
+    # Similar to end game, but forcibly closes the sockets
+    # Used to inform both players of a client disconnect from the server
+    def terminateGame(self, game):
+        players = game.getPlayers()
+        # remove each player from buffers
+        for player in players:
+            self.gamesMap.pop(player, None)
+            self.clientBuffers.pop(player, None)
+            if player in self.inputs:
+                self.inputs.remove(player)
+            if player in self.outputs:
+                self.outputs.remove(player)
+            player.close() # close the socket
+
+
+    # Ends the game logically, and removes sockets from
+    # server logic. Note that this does not actually close
+    # the sockets, the client will close the socket to guarentee
+    # the reciept of any messages.
     def endGame(self, game):
         players = game.getPlayers()
         # remove each player from buffers
@@ -329,10 +358,8 @@ class GameServer():
                 game1, game2 = pendingGames[0], pendingGames[1]
                 player1, player2 = game1.getPlayer1(), game2.getPlayer1()
                 game1.addPlayer2(player2)
-                game2.close()
                 # Remove game2 from gameList
-                self.gamesMap[player2] = game1
-                
+                self.gamesMap[player2] = game1 
             
             # Checks if any games have ended. If so, we must disconnect such players
             for game in self.getGames():
