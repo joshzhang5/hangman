@@ -12,7 +12,7 @@ import time
 from collections import deque
 
 WORDS = ["dog", "cat", "rat", "snake", "wasp", "lion", "boar", "lynx", "tiger", "sphynx", "baboon", "monkey", "elephant", "aardwolf", "whale"]
-HOST = "localhost"
+HOST = "0.0.0.0"
 
 # GameInstance is an FSM that transitions between the below states
 STATE_INITIALIZING = 0 # Initial state before a user selects multiplayer or single player
