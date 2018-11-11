@@ -277,7 +277,7 @@ class GameServer():
         elif not data:
             # Client has disconnected
             print("Client has disconnected!")
-            self.terminateGame(self.gamesMap[s])
+            self.endGame(self.gamesMap[s])
 
     # Returns binary string representing the message passed
     # Byte 0: length of message
@@ -297,25 +297,7 @@ class GameServer():
         data = msg[1]
         return data
 
-    # Similar to end game, but forcibly closes the sockets
-    # Used to inform both players of a client disconnect from the server
-    def terminateGame(self, game):
-        players = game.getPlayers()
-        # remove each player from buffers
-        for player in players:
-            self.gamesMap.pop(player, None)
-            self.clientBuffers.pop(player, None)
-            if player in self.inputs:
-                self.inputs.remove(player)
-            if player in self.outputs:
-                self.outputs.remove(player)
-            player.close() # close the socket
-
-
-    # Ends the game logically, and removes sockets from
-    # server logic. Note that this does not actually close
-    # the sockets, the client will close the socket to guarentee
-    # the reciept of any messages.
+    # Ends the games logically and forcibly closes sockets
     def endGame(self, game):
         players = game.getPlayers()
         # remove each player from buffers
@@ -326,7 +308,7 @@ class GameServer():
                 self.inputs.remove(player)
             if player in self.outputs:
                 self.outputs.remove(player)
-
+            player.close() # clos esocket
     def loop(self):
         while self.inputs:
             readable, writable, exceptional = select.select(
@@ -376,7 +358,6 @@ try:
     print("Starting server at port "  + sys.argv[1])
     server.loop()
 except KeyboardInterrupt:
-    print ("Shutting down server")
     server.server.shutdown(socket.SHUT_RDWR)
     server.server.close()
 finally:
