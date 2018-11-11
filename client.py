@@ -49,8 +49,9 @@ incorrectLetters = set()
 correctLetters = set()
 lastGuess = None
 wordProgress = ""
+GAME_ENDED = False
 
-while True:
+while not GAME_ENDED or len(buf) > 0:
     ready_to_read, ready_to_write, in_error = \
                select.select(
                   [s],
@@ -61,11 +62,10 @@ while True:
         data = sock.recv(1024)
         if not data:
             # we have disconnected
-            print("Lost connection to server.")
-            sock.close()
-            sys.exit(0)
+            GAME_ENDED = True
         for byte in data:
             buf.append(byte)
+
     if state == STATE_WAIT_RESPONSE:
         # Wait for a single byte from the server, to determine whether we will wait for a msg or client state
         if len(buf) > 0:
