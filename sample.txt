@@ -1,0 +1,41 @@
+mlin@ubuntu:~/Documents/hangman$ ./client.py 130.207.114.26 9001
+Two Player? (y/n)y
+Game Starting!
+Waiting on Player 1...
+
+Your turn!
+
+__a__
+Incorrect guesses:  
+
+Letter to guess: c
+Incorrect!
+Waiting on Player 1...
+
+Your turn!
+
+__a__
+Incorrect guesses: w c 
+
+Letter to guess: a
+Error! Letter A has been guessed before, please guess another letter.
+Letter to guess: q
+Incorrect!
+Waiting on Player 1...
+
+m
+ 
+Your turn!
+
+__a__
+Incorrect guesses: w v c q 
+
+Letter to guess: Incorrect!
+Waiting on Player 1...
+
+__a__
+Incorrect guesses: q v w c m b 
+
+You Lose!
+Game Over!
+
