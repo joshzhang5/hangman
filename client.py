@@ -58,14 +58,16 @@ while not LOST_CONNECTION or len(buf) > 0:
                   [],
                   [],
                   0.1)
-    for sock in ready_to_read:
-        data = sock.recv(1024)
-        if not data:
-            # we have disconnected
-            LOST_CONNECTION = True
-        for byte in data:
-            buf.append(byte)
-
+    try:
+        for sock in ready_to_read:
+            data = sock.recv(1024)
+            if not data:
+                # we have disconnected
+                LOST_CONNECTION = True
+            for byte in data:
+                buf.append(byte)
+    except ConnectionResetError or ConnectionError:
+        LOST_CONNECTION = True
     if state == STATE_WAIT_RESPONSE:
         # Wait for a single byte from the server, to determine whether we will wait for a msg or client state
         if len(buf) > 0:

@@ -221,7 +221,7 @@ class GameServer():
         return set([game for game in self.gamesMap.values()])
 
     # send server-overloaded message and gracefully shut down the socket
-    def handleServerOverload(self, s):
+    def handleServerOverload(s):
         errMsg = GameServer.constructMsg("server-overloaded")
         s.send(errMsg)
         s.shutdown(socket.SHUT_RDWR)
