@@ -7,6 +7,7 @@ import queue
 import struct
 import io
 import random
+import time
 
 from collections import deque
 
@@ -33,10 +34,11 @@ class GameInstance():
         self.player2 = None
         self.word = None
         self.wordState = None
+        self.unixStartTime = time.time()
 
         # Multiplayer gets set to TRUE in the matching state
         self.multiplayer = False
-
+        
     def addPlayer2(self, player2):
         if self.player2:
             raise Exception("Player 2 already set!")
@@ -88,7 +90,7 @@ class GameInstance():
             waitingPlayerMessage = ["Waiting on Player " + (str(1) if self.state == STATE_TURN_1 else str(2)) + "...\n"]
             player1Msgs, player2Msgs = activePlayerMessage, waitingPlayerMessage 
             if self.state == STATE_TURN_2:
-                player1Msgs, player2Msgs = player2Msgs, player1Msgs
+                player1Msgs,  player2Msgs = player2Msgs, player1Msgs
 
             for msg in player1Msgs:
                 self.player1.send(GameServer.constructMsg(msg))
@@ -117,8 +119,6 @@ class GameInstance():
                 self.state = STATE_TURN_1
             elif (int(msg) == 2):
                 # multiplayer
-                # enter match making queue
-                player.send(GameServer.constructMsg("Looking for another player..."))
                 self.state = STATE_MATCHING
                 self.multiplayer = True
                 return # Do not inform state until we have left the queue
@@ -214,11 +214,14 @@ class GameServer():
         # Maps sockets to GameInstances
         self.gamesMap = {}
 
+        # list of GameInstances looking to be matched, used to make sure "Waiting for other player!" messages only sent once.
+        self.matchQueue = set()
+
         # Client buffers buffers incoming messages from recv
         self.clientBuffers = {}
 
     def getGames(self):
-        return set([game for game in self.gamesMap.values()])
+        return sorted(self.gamesMap.values(), key=lambda game: game.unixStartTime)
 
     # send server-overloaded message and gracefully shut down the socket
     def handleServerOverload(s):
@@ -246,7 +249,7 @@ class GameServer():
             self.gamesMap[connection] = GameInstance(connection)
 
             print("Connection with a client established!")
- 
+            
     # Handles incoming data
     def handleData(self, s):
         data = s.recv(1024)
@@ -278,6 +281,31 @@ class GameServer():
             # Client has disconnected
             print("Client has disconnected!")
             self.endGame(self.gamesMap[s])
+
+    def matchMultiplayerGames(self):
+
+        # match games in chronological order 
+        while (len([game for game in self.getGames() if game.getState() == STATE_MATCHING]) >= 2):
+            pendingGames = [game for game in self.getGames() if game.getState() == STATE_MATCHING]
+            # Match second game as player2 to first game; destroy the 2nd game
+            game1, game2 = pendingGames[0], pendingGames[1]
+            player1, player2 = game1.getPlayer1(), game2.getPlayer1()
+            game1.addPlayer2(player2)
+            # Remove game2 from gameList
+            self.gamesMap[player2] = game1 
+
+            # remove games from that match queue if they exist
+            if (game1 in self.matchQueue):
+                self.matchQueue.remove(game1)
+            if (game2 in self.matchQueue):
+                self.matchQueue.remove(game2)
+        
+        # Send a one time message to unmatched players that server is waitingg for new multiplayer connections 
+        # and add them to the match queue
+        for game in [game for game in self.getGames() if game.getState() == STATE_MATCHING and game not in self.matchQueue]:
+            waitingPlayer = game.getPlayer1()
+            waitingPlayer.send(GameServer.constructMsg("Waiting for other player!"))
+            self.matchQueue.add(game)
 
     # Returns binary string representing the message passed
     # Byte 0: length of message
@@ -333,16 +361,8 @@ class GameServer():
                         game = self.gamesMap[s]
                         self.endGame(game)
             
-            # Setup match making 
-            while (len([game for game in self.getGames() if game.getState() == STATE_MATCHING]) >= 2):
-                pendingGames = [game for game in self.getGames() if game.getState() == STATE_MATCHING]
-                # Match second game as player2 to first game; destroy the 2nd game
-                game1, game2 = pendingGames[0], pendingGames[1]
-                player1, player2 = game1.getPlayer1(), game2.getPlayer1()
-                game1.addPlayer2(player2)
-                # Remove game2 from gameList
-                self.gamesMap[player2] = game1 
-            
+            self.matchMultiplayerGames()
+
             # Checks if any games have ended. If so, we must disconnect such players
             for game in self.getGames():
                 if game.getState() == STATE_END:

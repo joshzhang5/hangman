@@ -26,7 +26,6 @@ while state == STATE_ENTER_MULTIPLAYER:
     val = input("Two Player? (y/n)")
     if len(val) > 1 or (val != 'y' and val != 'n'):
         print("Please enter y/n")
-        print(len(val))
         continue
     else:
         if val == 'y':
