@@ -1,6 +1,7 @@
 # Hangman
 ## Authors
 Michael Lin - Single Player implementation
+
 Jiaxi Zhang - Multiplayer implementation/bug-fixes
 ## Running
 Requires Python3 with no other dependencies.
