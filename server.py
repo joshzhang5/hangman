@@ -8,6 +8,7 @@ import struct
 import io
 import random
 import time
+import os
 
 from collections import deque
 
@@ -369,7 +370,15 @@ class GameServer():
 
 
 if len(sys.argv) < 2:
-    raise Exception("Port number not provided!")
+    raise Exception("Usage: server.py port [word_file.txt]")
+
+if len(sys.argv) >= 3:
+    # argument 2 will refer to the file name of the words to import
+    print("Importing words from " + sys.argv[2])
+    with open(os.path.join(os.path.dirname(__file__),sys.argv[2])) as file:
+        WORDS =  [word.strip() for word in file]
+        if len(WORDS) == 0:
+            raise Exception("No words specified in " + sys.argv[2])
 
 server = GameServer(int(sys.argv[1]))
 

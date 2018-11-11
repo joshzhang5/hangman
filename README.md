@@ -8,8 +8,11 @@ Requires Python3 with no other dependencies.
 
 Run the server with
 ```
-python3 server.py YOUR_PORT
+python3 server.py YOUR_PORT [YOUR_FILE]
 ```
+
+Note that the second argument is optional. If specified it will load the words
+as specified, interpretting each line as a word. See animals.txt for an example.
 
 Run the client with
 ```
@@ -27,7 +30,7 @@ chmod +x client.py
 Then execute the client/server directly
 
 ```
-./server.py YOUR_PORT
+./server.py YOUR_PORT [YOUR_FILE]
 ./client.py YOUR_IP YOUR_PORT
 ```
 

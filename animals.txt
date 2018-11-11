@@ -1,0 +1,15 @@
+dog
+cat
+rat
+snake
+wasp
+lion
+boar
+lynx
+tiger
+sphynx
+baboon
+monkey
+elephant
+aardwolf 
+whale
