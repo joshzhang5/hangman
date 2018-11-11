@@ -11,8 +11,7 @@ import time
 
 from collections import deque
 
-#TODO add more words
-WORDS = ["dog", "cat", "elephant", "wasp", "tiger", "lion", "aardwolf", "boar"]
+WORDS = ["dog", "cat", "rat", "snake", "wasp", "lion", "boar", "lynx", "tiger", "sphynx", "baboon", "monkey", "elephant", "aardwolf", "whale"]
 HOST = "localhost"
 
 # GameInstance is an FSM that transitions between the below states
