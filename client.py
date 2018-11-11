@@ -16,11 +16,14 @@ STATE_READ_INCORRECT = 6
 STATE_ENTER_LETTER = 7
 
 
+if len(sys.argv) < 3:
+    raise Exception("Please provide server address and port as command line arguments")
+    
 state = STATE_ENTER_MULTIPLAYER
 
 multiplayer = False
 while state == STATE_ENTER_MULTIPLAYER:
-    val = input("Multiplayer game? (y/n?)")
+    val = input("Two Player? (y/n)")
     if len(val) > 1 or (val != 'y' and val != 'n'):
         print("Please enter y/n")
         print(len(val))
@@ -33,14 +36,14 @@ while state == STATE_ENTER_MULTIPLAYER:
         state = STATE_WAIT_RESPONSE
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-s.connect(('localhost', 9001))
+s.connect((sys.argv[1], int(sys.argv[2])))
 s.setblocking(0)
 if multiplayer:
     s.send(bytes([1,2]))
 else:
     s.send(bytes([1,0]))
-bytesToRead = 0
 
+bytesToRead = 0
 num_incorrect = 0
 incorrectLetters = set()
 correctLetters = set()
@@ -54,11 +57,12 @@ while True:
                   [],
                   [],
                   0.1)
-    for sock in ready_to_read:
+    for sock in ready_to_read:  
         data = sock.recv(1024)
         if not data:
             # we have disconnected
             print("Lost connection to server.")
+            sock.close()
             sys.exit(0)
         for byte in data:
             buf.append(byte)
@@ -73,7 +77,7 @@ while True:
                 bytesToRead = 2
                 state = STATE_READ_STATE_LENGTH
     elif state == STATE_READ_MSG:
-        if len(buf) >= bytesToRead:
+        if len(buf) > 0 and len(buf) >= bytesToRead:
             # create the string to print out
             msg = ""
             while(bytesToRead > 0):
@@ -81,6 +85,8 @@ while True:
                 bytesToRead -= 1
             print(msg)
             if(msg == 'Game Over!'): # Disconnect gracefully
+                s.shutdown(socket.SHUT_RDWR)
+                s.close()
                 sys.exit(0)
             state = STATE_WAIT_RESPONSE
     elif state == STATE_READ_STATE_LENGTH:
@@ -106,27 +112,22 @@ while True:
                 incorrectLetters.add(char)
                 bytesToRead -= 1
             print(wordProgress)
-            print("Incorrect guesses:")
-            print(incorrectLetters)
+            print("Incorrect guesses: {} \n".format(' '.join(incorrectLetters)))
         if len(incorrectLetters) < 6 and sum([1 for _ in wordProgress if _ == '_']) > 0:
             state = STATE_ENTER_LETTER
         else:
             state = STATE_WAIT_RESPONSE
 
     elif state == STATE_ENTER_LETTER:
-        val = input("Please enter a letter: ")
-        if len(val) > 1:
-            print("Please enter one character.")
-            continue
-        elif not val.isalpha() :
-            print("Please enter a letter")
+        val = input("Letter to guess: ")
+        if len(val) > 1 or not val.isalpha():
+            print("Error! Please guess one letter.")
             continue
         elif val.lower() in incorrectLetters or val.lower() in correctLetters:
-            print("Please enter a letter you haven't entered before.")
+            print("Error! Letter {} has been guessed before, please guess another letter.".format(val.upper()))
             continue
         else:
             lastGuess = val.lower()
             s.send(bytes([1]) + val.lower().encode('ascii'))
             state = STATE_WAIT_RESPONSE
-
 

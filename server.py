@@ -10,6 +10,7 @@ import random
 
 from collections import deque
 
+#TODO add more words
 WORDS = ["dog", "cat", "elephant", "wasp", "tiger", "lion", "aardwolf", "boar"]
 HOST = "localhost"
 
@@ -32,8 +33,8 @@ class GameInstance():
         self.player2 = None
         self.word = None
         self.wordState = None
-        # Multiplayer gets set to TRUE in the matching state
 
+        # Multiplayer gets set to TRUE in the matching state
         self.multiplayer = False
 
     def addPlayer2(self, player2):
@@ -48,10 +49,11 @@ class GameInstance():
         self.word = random.choice(WORDS)
         self.wordState = "_" * len(self.word)
         
-        self.player1.send(GameServer.constructMsg("Game Started!"))
-        self.player2.send(GameServer.constructMsg("Game Started!"))
+        self.player1.send(GameServer.constructMsg("Game Starting!"))
+        self.player2.send(GameServer.constructMsg("Game Starting!"))
 
         self.informState()
+
     def getPlayer1(self):
         return self.player1
 
@@ -78,19 +80,14 @@ class GameInstance():
     # Informs the current state to the player(s) of the game
     # Called between every transition
     def informState(self):
-        incorrectString = ""
-        
-        for incorrect in self.incorrectGuesses:
-            incorrectString + " " + chr(incorrect)
-
         if not self.multiplayer:
             player1Msg = self.createGameMsg()
             self.player1.send(player1Msg)
         else:
-            player1Msgs, player2Msgs = ["Your turn! \n"], ["Waiting on Other Player...\n"]
-            if self.state == STATE_TURN_2:
-                player2Msgs, player1Msgs = player1Msgs, player2Msgs
-
+            activePlayerMessage = ["Your turn!\n"]
+            waitingPlayerMessage = ["Waiting on Player " + (1 if self.state == STATE_TURN_1 else 2) + "...\n"]
+            player1Msgs, player2Msgs = activePlayerMessage, waitingPlayerMessage if self.state == STATE_TURN_1 else waitingPlayerMessage, activePlayerMessage
+            
             for msg in player1Msgs:
                 self.player1.send(GameServer.constructMsg(msg))
             for msg in player2Msgs:
@@ -113,7 +110,8 @@ class GameInstance():
                 self.word = random.choice(WORDS)
                 self.wordState = "_" * len(self.word)
                 self.multiplayer = False
-                player.send(GameServer.constructMsg("Game Start!"))
+                # Not neccessary
+                # player.send(GameServer.constructMsg("Game Start!"))
                 self.state = STATE_TURN_1
             elif (int(msg) == 2):
                 # multiplayer
@@ -127,7 +125,7 @@ class GameInstance():
                 
                 return # Do not advance state
         elif (self.state == STATE_TURN_1 and player == self.player1) or (self.state == STATE_TURN_2 and player == self.player2):
-            # check if letter has already been guessed
+            # check if letter has alrea dy been guessed
             if msg in self.correctGuesses or msg in self.incorrectGuesses:
                 player.send(GameServer.constructMsg("Letter has already been guessed!"))
                 return # Do not inform state.
@@ -139,16 +137,17 @@ class GameInstance():
                     else:
                         new_str += self.wordState[i]
                 self.wordState = new_str
+                # Examples don't send this.
                 player.send(GameServer.constructMsg("Correct!"))
                 self.correctGuesses.add(msg)
             else:
                 self.incorrectGuesses.add(msg) 
+                # Examples don't send this.
                 player.send(GameServer.constructMsg("Incorrect!"))
+            # Switch turns if multiplayer
+            if self.multiplayer:
+                self.state = STATE_TURN_2 if self.state == STATE_TURN_1 else STATE_TURN_1
 
-            if self.state == STATE_TURN_1 and self.multiplayer:
-                self.state = STATE_TURN_2
-            elif self.state == STATE_TURN_2 and self.multiplayer:
-                self.state = STATE_TURN_1
         elif self.state == STATE_END:
             return # Do not do anything; game has ended.
         else:
@@ -156,23 +155,15 @@ class GameInstance():
             return # Do not inform state.
       
         # Inform clients of state
-        self.informState()
 
         # Check end conditions
         if len(self.incorrectGuesses) >= 6:
-            # Lose
-            for player in self.getPlayers():
-                player.send(self.createGameMsg())
-                player.send(GameServer.constructMsg("You Lose!"))
-                player.send(GameServer.constructMsg("Game Over!"))
-            self.close()
+            self.endGame("You Lose!")
         elif len(self.correctGuesses) == len(self.word):
-            # Win
-            for player in self.getPlayers():
-                player.send(self.createGameMsg())
-                player.send(GameServer.constructMsg("You Win!"))
-                player.send(GameServer.constructMsg("Game Over!"))
-            self.close()
+            self.endGame("You Win!")
+        else:
+            self.informState()
+
 
     def getIncorrectGuesses(self):
         return self.incorrectGuesses
@@ -181,19 +172,23 @@ class GameInstance():
         # Creates game control packet
         # includes length of word, and the number incorrect
         word_len = len(self.word.encode("ascii"))
-        num_incorrect = len(self.incorrectGuesses)
+        num_incorrect = len(self.getIncorrectGuesses())
         incorrectLetters = ""
-        for incorrect in self.incorrectGuesses:
+        for incorrect in self.getIncorrectGuesses():
             incorrectLetters += chr(incorrect)
         return struct.pack("BBB", 0, word_len, num_incorrect) + self.wordState.encode("ascii") + incorrectLetters.encode("ascii")
     
     # Ends the game
-    def close(self):
+    def endGame(self, outcomeMsg):
+        print("Client ended with outcome " + outcomeMsg)
         self.state = STATE_END
-
+        for player in self.getPlayers():
+            player.send(self.createGameMsg())
+            player.send(GameServer.constructMsg(outcomeMsg))
+            player.send(GameServer.constructMsg("Game Over!"))
 
 class GameServer():
-    def __init__(self, port=9001):
+    def __init__(self, port):
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # Re-use socket address if necessary
         linger_enabled = 1
@@ -205,7 +200,7 @@ class GameServer():
         
         self.server.setblocking(0)
         self.server.bind((HOST, port))
-        self.server.listen(5)
+        self.server.listen(6)
 
         # Input sockets
         self.inputs = [self.server]
@@ -222,20 +217,32 @@ class GameServer():
     def getGames(self):
         return set([game for game in self.gamesMap.values()])
 
+    # send server-overloaded message and gracefully shut down the socket
+    def handleServerOverload(self, s):
+        errMsg = GameServer.constructMsg("server-overloaded")
+        s.send(errMsg)
+        s.shutdown(socket.SHUT_RDWR)
+        s.close()
 
     # handles a new incoming connection
     def handleConnection(self, s):
         connection, client_address = s.accept()
         connection.setblocking(0)
-        self.inputs.append(connection)
-        self.outputs.append(connection)
+        # Set up new game if there are < 3 currently active games.
+        activeGames = filter(lambda x: (x.getState() == STATE_TURN_1 or x.getState() == STATE_TURN_2), self.gamesMap.values())
+        if len(set(activeGames)) == 3:
+            GameServer.handleServerOverload(connection)
+        else:
+            self.inputs.append(connection)
+            self.outputs.append(connection)
+            
+            # Buffers incoming data from recv from this client
+            self.clientBuffers[connection] = deque()
 
-        # Get the number of active games (not match making, not uninitialized
-        # Buffers incoming data from recv from this client
-        self.clientBuffers[connection] = deque()
+            # Initializes a GameInstance in STATE_INITIALIZING state
+            self.gamesMap[connection] = GameInstance(connection)
 
-        # Initializes a GameInstance in STATE_INITIALIZING state
-        self.gamesMap[connection] = GameInstance(connection)
+            print("Connection with a client established!")
  
     # Handles incoming data
     def handleData(self, s):
@@ -259,6 +266,7 @@ class GameServer():
                     self.gamesMap[s].readClientMsg(s, data)
         elif not data:
             # Client has disconnected
+            print("Client has disconnected!")
             self.endGame(self.gamesMap[s])
 
     # Returns binary string representing the message passed
@@ -281,8 +289,7 @@ class GameServer():
 
     def endGame(self, game):
         players = game.getPlayers()
-        game.close()
-        # Close sockets/remove each player from buffers
+        # remove each player from buffers
         for player in players:
             self.gamesMap.pop(player, None)
             self.clientBuffers.pop(player, None)
@@ -331,8 +338,15 @@ class GameServer():
             for game in self.getGames():
                 if game.getState() == STATE_END:
                     self.endGame(game)
-server = GameServer()
+
+
+if len(sys.argv) < 2:
+    raise Exception("Port number not provided!")
+
+server = GameServer(int(sys.argv[1]))
+
 try:
+    print("Starting server at port "  + sys.argv[1])
     server.loop()
 except KeyboardInterrupt:
     print ("Shutting down server")
@@ -340,5 +354,4 @@ except KeyboardInterrupt:
     server.server.close()
 finally:
     print ("Shutting down server")
-
-
+    
