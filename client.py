@@ -43,10 +43,9 @@ else:
     s.send(bytes([0]))
 
 bytesToRead = 0
-num_incorrect = 0
+numIncorrect = 0
 incorrectLetters = set()
 correctLetters = set()
-lastGuess = None
 wordProgress = ""
 LOST_CONNECTION = False
 
@@ -92,9 +91,9 @@ while not LOST_CONNECTION or len(buf) > 0:
             state = STATE_WAIT_RESPONSE
     elif state == STATE_READ_STATE_LENGTH:
         if len(buf) >= bytesToRead:
-            word_length = buf.popleft()
-            num_incorrect = buf.popleft()
-            bytesToRead = word_length
+            wordLength = buf.popleft()
+            numIncorrect = buf.popleft()
+            bytesToRead = wordLength
             state = STATE_READ_LETTERS
     elif state == STATE_READ_LETTERS:
         if len(buf) >= bytesToRead:
@@ -102,9 +101,10 @@ while not LOST_CONNECTION or len(buf) > 0:
             while(bytesToRead > 0):
                 char = chr(buf.popleft())
                 wordProgress += char
-                correctLetters.add(char)
+                if char != '_':
+                    correctLetters.add(char)
                 bytesToRead -= 1
-            bytesToRead = num_incorrect
+            bytesToRead = numIncorrect
             state = STATE_READ_INCORRECT
     elif state == STATE_READ_INCORRECT:
         if len(buf) >= bytesToRead:
@@ -128,7 +128,6 @@ while not LOST_CONNECTION or len(buf) > 0:
             print("Error! Letter {} has been guessed before, please guess another letter.".format(val.upper()))
             continue
         else:
-            lastGuess = val.lower()
             s.send(bytes([1]) + val.lower().encode('ascii'))
             state = STATE_WAIT_RESPONSE
 if LOST_CONNECTION:
