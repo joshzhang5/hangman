@@ -161,7 +161,7 @@ class GameInstance():
         # Check end conditions
         if len(self.incorrectGuesses) >= 6:
             self.endGame("You Lose!")
-        elif len(self.correctGuesses) == len(self.word):
+        elif len(self.correctGuesses) == len(set(list(self.word))):
             self.endGame("You Win!")
         else:
             self.informState()
